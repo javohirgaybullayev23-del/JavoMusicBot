@@ -2,7 +2,6 @@ import os
 import telebot
 from yt_dlp import YoutubeDL
 
-# Token Replit Secrets'dan olinadi
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '8628355750:AAGqT2SsTft1sfgnmRZfXMo--XMEJFSt3Tc')
 
 bot = telebot.TeleBot(TOKEN)
@@ -17,18 +16,14 @@ def download_music(message):
     msg = bot.reply_to(message, f"🔍 <b>{query}</b> qidirilmoqda...", parse_mode='HTML')
     
     filename = None
+    
+    # SoundCloud va boshqa ochiq platformalardan qidiradi (bloklanmaydi!)
     ydl_opts = {
         'format': 'bestaudio/best',
-        'default_search': 'ytsearch1:',
+        'default_search': 'scsearch1:',  # SoundCloud Search
         'outtmpl': '%(id)s.%(ext)s',
         'quiet': True,
         'no_warnings': True,
-        # YouTube IP blokirovkasidan o'tish uchun mobil client:
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'ios']
-            }
-        },
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -62,7 +57,7 @@ def download_music(message):
 
     except Exception as e:
         print(f"Xatolik: {e}")
-        bot.edit_message_text("❌ Kechirasiz, qo'shiqni yuklab bo'lmadi. Qaytadan urinib ko'ring!", message.chat.id, msg.message_id)
+        bot.edit_message_text("❌ Kechirasiz, qo'shiq topilmadi. Boshqacha nom bilan qidirib ko'ring!", message.chat.id, msg.message_id)
         
     finally:
         if filename and os.path.exists(filename):
