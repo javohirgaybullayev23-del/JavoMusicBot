@@ -2,98 +2,75 @@ import os
 import telebot
 from yt_dlp import YoutubeDL
 
-# Bot Token
-TOKEN = "8628355750:AAGqT2SsTft1sfgnmRZfXMo--XMEJFSt3Tc"
+# Token Replit Secrets'dan olinadi
+TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '8628355750:AAGqT2SsTft1sfgnmRZfXMo--XMEJFSt3Tc')
+
 bot = telebot.TeleBot(TOKEN)
 
-@bot.message_handler(commands=['start'])
+@bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    start_text = (
-        "🎮 <b>JAVOMUSIC BOT ISHGA TUSHDI!</b> 🎮\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        "👾 <i>2D Audio Search Engine Active!</i>\n\n"
-        "🎵 Menga istalgan qo'shiq nomini yozing!\n"
-        "<i>Masalan: <b>Mirjalol Nematov anor</b></i>\n\n"
-        "⚡️ Men uni YouTube'dan toza <b>MP3 formatda</b> topib beraman!"
-    )
-    bot.send_message(message.chat.id, start_text, parse_mode="HTML")
+    bot.reply_to(message, "Salom! Men JavoMusic Botman 🎵\nQo'shiq nomini yozing, men uni topib MP3 formatda tashlab beraman!")
 
 @bot.message_handler(func=lambda message: True)
-def search_and_download(message):
+def download_music(message):
     query = message.text
-    msg = bot.reply_to(
-        message, 
-        f"🔍 <b>[2D SEARCH]</b> <i>'{query}' YouTube'dan qidirilmoqda va yuklanmoqda...</i>", 
-        parse_mode="HTML"
-    )
+    msg = bot.reply_to(message, f"🔍 <b>{query}</b> qidirilmoqda...", parse_mode='HTML')
     
-    # Faylni vaqtinchalik saqlash joyi va nomi
-    output_template = "downloads/%(id)s.%(ext)s"
-    
+    filename = None
     ydl_opts = {
         'format': 'bestaudio/best',
-        'default_search': 'ytsearch1',
-        'noplaylist': True,
-        'outtmpl': output_template,
+        'default_search': 'ytsearch1:',
+        'outtmpl': '%(id)s.%(ext)s',
         'quiet': True,
         'no_warnings': True,
+        # YouTube IP blokirovkasidan o'tish uchun mobil client:
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios']
+            }
+        },
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
     }
-
-    filename_mp3 = None
-
+    
     try:
-        os.makedirs("downloads", exist_ok=True)
         with YoutubeDL(ydl_opts) as ydl:
-            # YouTube'dan ma'lumotni olamiz
-            info = ydl.extract_info(f"ytsearch1:{query}", download=True)
-            
+            info = ydl.extract_info(query, download=True)
             if 'entries' in info and len(info['entries']) > 0:
-                info = info['entries'][0]
+                video_info = info['entries'][0]
+            else:
+                video_info = info
                 
-            # YouTube'dagi AYNAN to'liq nomini olamiz
-            youtube_title = info.get('title', 'Audio')
-            channel_name = info.get('uploader', 'YouTube')
-            
-            # Fayl nomini aniqlaymiz
-            base_filename = ydl.prepare_filename(info)
-            filename_mp3 = os.path.splitext(base_filename)[0] + ".mp3"
+            file_id = video_info['id']
+            title = video_info.get('title', 'Qo\'shiq')
+            filename = f"{file_id}.mp3"
 
-        # MP3 faylni yuborish (YouTube tagidagi asl nomi bilan!)
-        with open(filename_mp3, 'rb') as audio:
-            bot.send_audio(
-                chat_id=message.chat.id, 
-                audio=audio, 
-                title=youtube_title,        # YouTube'dagi sarlavha
-                performer=channel_name,     # Kanal nomi
-                caption=(
-                    f"🎧 <b>{youtube_title}</b>\n\n"
-                    f"👤 <b>Kanal:</b> {channel_name}\n"
-                    f"✨ <i>@JavoMusicBot orqali yuklandi</i>"
-                ),
-                parse_mode="HTML"
-            )
+        bot.edit_message_text(f"📤 <b>{title}</b> yuklanmoqda...", message.chat.id, msg.message_id, parse_mode='HTML')
         
-        # "Qidirilmoqda..." degan xabarni o'chiramiz
+        with open(filename, 'rb') as audio:
+            bot.send_audio(
+                message.chat.id, 
+                audio, 
+                caption=f"🎵 <b>{title}</b>\n\n🤖 @JavoMusicBot orqali yuklandi", 
+                parse_mode='HTML'
+            )
+            
         bot.delete_message(message.chat.id, msg.message_id)
 
     except Exception as e:
-        bot.edit_message_text(
-            f"❌ Kechirasiz, qo'shiq topilmadi yoki FFmpeg bilan bog'liq xatolik yuz berdi!\n\n`{e}`", 
-            message.chat.id, 
-            msg.message_id,
-            parse_mode="Markdown"
-        )
         print(f"Xatolik: {e}")
-
+        bot.edit_message_text("❌ Kechirasiz, qo'shiqni yuklab bo'lmadi. Qaytadan urinib ko'ring!", message.chat.id, msg.message_id)
+        
     finally:
-        # Kompyuterdagi vaqtincha saqlangan MP3 faylni o'chirish (joy to'lib ketmasligi uchun)
-        if filename_mp3 and os.path.exists(filename_mp3):
-            os.remove(filename_mp3)
+        if filename and os.path.exists(filename):
+            try:
+                os.remove(filename)
+            except Exception:
+                pass
 
-print("👾 JavoMusic Bot kompyuterda tayyor va ishlamoqda!")
-bot.infinity_polling()
+if __name__ == '__main__':
+    print("Bot ishga tushdi...")
+    bot.infinity_polling()
